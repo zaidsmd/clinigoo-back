@@ -22,8 +22,8 @@ class CareRequestStoreRequest extends FormRequest
         $serviceId = $this->input('serviceId') ?? $this->input('service_id');
         $beneficiaryId = $this->input('beneficiaryId') ?? $this->input('beneficiary_id');
         $addressId = $this->input('addressId') ?? $this->input('address_id');
-        $durationHours = $this->input('durationHours') ?? $this->input('duration_hours');
-        $freeMobility = $this->input('free_mobility') ?? $this->input('freeMobility');
+        // $durationHours = $this->input('durationHours') ?? $this->input('duration_hours');
+    // $freeMobility = $this->input('free_mobility') ?? $this->input('freeMobility');
         $urgent = $this->input('urgent');
         $description = $this->input('description') ?? $this->input('notes');
 
@@ -46,11 +46,9 @@ class CareRequestStoreRequest extends FormRequest
             'service_id' => $serviceId !== null ? (int) $serviceId : null,
             'beneficiary_id' => $beneficiaryId !== null ? (int) $beneficiaryId : null,
             'address_id' => $addressId !== null ? (int) $addressId : null,
-            'duration_hours' => $durationHours !== null ? (float) $durationHours : null,
-            'free_mobility' => $freeMobility !== null ? filter_var($freeMobility, FILTER_VALIDATE_BOOLEAN) : null,
             'urgent' => $urgent !== null ? filter_var($urgent, FILTER_VALIDATE_BOOLEAN) : null,
-            'certified' => $this->has('certified') ? filter_var($this->input('certified'), FILTER_VALIDATE_BOOLEAN) : null,
             'description' => $description,
+            'evaluation' => null ,
             'notes' => $description,
             'date' => $date,
             'time' => $time,
@@ -76,16 +74,16 @@ class CareRequestStoreRequest extends FormRequest
             'urgent' => ['required', 'boolean'],
             'date' => ['nullable', 'date'],
             'time' => ['nullable', 'string'],
-            'duration_hours' => ['required', 'numeric', 'min:0'],
+            // 'duration_hours' => ['required', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
             'documents' => ['nullable', 'array'],
             'documents.*' => ['nullable'],
-            'perimeter' => ['required', 'integer', 'min:0'],
+            // 'perimeter' => ['required', 'integer', 'min:0'],
             'evaluation' => ['nullable', 'numeric', 'min:0', 'max:5'],
             'gender' => ['required', 'string', 'in:all,male,female'],
-            'certified' => ['required', 'boolean'],
-            'free_mobility' => ['required', 'boolean'],
+            // 'certified' => ['required', 'boolean'],
+            // 'free_mobility' => ['required', 'boolean'],
         ];
     }
 
@@ -105,7 +103,6 @@ class CareRequestStoreRequest extends FormRequest
                     $validator->errors()->add('time', 'The time field must be null when urgent is true.');
                 }
             }
-
             if (empty($this->input('address_id')) && empty($this->input('address'))) {
                 $validator->errors()->add('address_id', 'Either addressId or address object (latitude and longitude) must be provided.');
             }

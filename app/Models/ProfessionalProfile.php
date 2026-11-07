@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\HealthcareProfession;
 use App\Enums\ProfessionalHistoryAction;
 use App\Enums\ProfessionalStatus;
 use Database\Factories\ProfessionalProfileFactory;
@@ -64,6 +65,8 @@ class ProfessionalProfile extends Model
         'bio',
         'avatar',
         'phone',
+        'city',
+        'birthday',
         'is_available',
         'submitted_at',
         'validated_at',
@@ -72,6 +75,8 @@ class ProfessionalProfile extends Model
         // Also allow aliases on mass assignment
         'firstName',
         'lastName',
+        'birth_date',
+        'date_of_birth',
         'professional_id',
         'professionalId',
         'ID',
@@ -81,8 +86,6 @@ class ProfessionalProfile extends Model
      * @var array<string>
      */
     protected $appends = [
-        'first_name',
-        'last_name',
         'full_name',
         'professional_id',
         'is_validated',
@@ -99,6 +102,7 @@ class ProfessionalProfile extends Model
             'is_available' => 'boolean',
             'submitted_at' => 'datetime',
             'validated_at' => 'datetime',
+            'birthday' => 'date',
             'pending_data' => 'array',
         ];
     }
@@ -186,6 +190,25 @@ class ProfessionalProfile extends Model
     }
 
     /**
+     * Alias accessor & mutator for birth_date / date_of_birth / birthday.
+     */
+    protected function birthDate(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value, array $attributes) => $attributes['birthday'] ?? $value,
+            set: fn ($value) => ['birthday' => $value],
+        );
+    }
+
+    protected function dateOfBirth(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value, array $attributes) => $attributes['birthday'] ?? $value,
+            set: fn ($value) => ['birthday' => $value],
+        );
+    }
+
+    /**
      * Alias accessor & mutator for professional_id / ID / id_number.
      */
     protected function professionalId(): Attribute
@@ -204,6 +227,22 @@ class ProfessionalProfile extends Model
         return Attribute::make(
             get: fn () => trim(($this->first_name ?? '').' '.($this->last_name ?? '')),
         );
+    }
+
+    /**
+     * Backward-compatible accessor for birthday.
+     */
+    public function getBirthdayAttribute(): ?string
+    {
+        return $this->attributes['birthday'] ?? null;
+    }
+
+    /**
+     * Backward-compatible accessor for city.
+     */
+    public function getCityAttribute(): ?string
+    {
+        return $this->attributes['city'] ?? null;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\HealthcareServiceCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreServiceRequest;
 use App\Http\Requests\Admin\UpdateServiceRequest;
@@ -17,6 +18,17 @@ class ServiceController extends Controller
     public function index(Request $request): JsonResponse
     {
         return $this->serviceService->dataTable($request->all());
+    }
+
+    /**
+     * Return the 5 fixed service categories.
+     */
+    public function categories(): JsonResponse
+    {
+        return response()->json([
+            'data' => HealthcareServiceCategory::options(),
+            'total' => count(HealthcareServiceCategory::cases()),
+        ]);
     }
 
     public function store(StoreServiceRequest $request): JsonResponse

@@ -20,17 +20,19 @@ class ProfessionController extends Controller
         return $this->professionService->dataTable($request->all());
     }
 
-    public function store(StoreProfessionRequest $request): JsonResponse
+    public function store(Request $request): JsonResponse
     {
-        $profession = $this->professionService->store($request->validated());
-
-        return response()->json($profession, 201);
+        return response()->json([
+            'message' => 'Les 6 professions de santé sont désormais figées. La création via CRUD a été éliminée.',
+        ], 403);
     }
 
     public function show(Profession|int|string $profession): JsonResponse
     {
         if (! $profession instanceof Profession) {
-            $profession = Profession::findOrFail($profession);
+            $profession = Profession::where('slug', $profession)
+                ->orWhere('id', $profession)
+                ->firstOrFail();
         }
 
         $profession->load(['services', 'documents']);
@@ -38,25 +40,45 @@ class ProfessionController extends Controller
         return response()->json(new ProfessionResource($profession));
     }
 
-    public function update(UpdateProfessionRequest $request, Profession|int|string $profession): JsonResponse
+    public function update(Request $request, Profession|int|string $profession): JsonResponse
     {
         if (! $profession instanceof Profession) {
-            $profession = Profession::findOrFail($profession);
+            $profession = Profession::where('slug', $profession)
+                ->orWhere('id', $profession)
+                ->firstOrFail();
         }
 
-        $profession = $this->professionService->update($profession, $request->validated());
+        if ($request->has('documents')) {
+            $this->professionService->syncDocuments($profession, (array) $request->input('documents'));
+            $profession->load(['services', 'documents']);
 
-        return response()->json($profession);
+            return response()->json(new ProfessionResource($profession));
+        }
+
+        return response()->json([
+            'message' => 'Les 6 professions de santé sont désormais figées. Seules les exigences documentaires peuvent être configurées.',
+        ], 403);
+    }
+
+    public function updateDocuments(Request $request, Profession|int|string $profession): JsonResponse
+    {
+        if (! $profession instanceof Profession) {
+            $profession = Profession::where('slug', $profession)
+                ->orWhere('id', $profession)
+                ->firstOrFail();
+        }
+
+        $documents = $request->input('documents', []);
+        $this->professionService->syncDocuments($profession, (array) $documents);
+        $profession->load(['services', 'documents']);
+
+        return response()->json(new ProfessionResource($profession));
     }
 
     public function destroy(Profession|int|string $profession): JsonResponse
     {
-        if (! $profession instanceof Profession) {
-            $profession = Profession::findOrFail($profession);
-        }
-
-        $this->professionService->delete($profession);
-
-        return response()->json(null, 204);
+        return response()->json([
+            'message' => 'Les 6 professions de santé sont désormais figées. La suppression via CRUD a été éliminée.',
+        ], 403);
     }
 }

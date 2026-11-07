@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\HealthcareServiceCategory;
 use Database\Factories\ServiceFactory;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -40,12 +41,23 @@ class Service extends Model
      */
     protected $fillable = [
         'name',
+        'category',
         'description',
         'icon',
         'base_price',
         'duration_minutes',
         'is_active',
         'sort_order',
+    ];
+
+    /**
+     * @var array<string>
+     */
+    protected $appends = [
+        'service_category_id',
+        'service_category',
+        'profession_ids',
+        'professions_summary',
     ];
 
     /**
@@ -57,10 +69,54 @@ class Service extends Model
     {
         return [
             'id' => 'integer',
+            'category' => HealthcareServiceCategory::class,
             'base_price' => 'decimal:2',
             'is_active' => 'boolean',
             'sort_order' => 'integer',
         ];
+    }
+
+    public function getServiceCategoryIdAttribute(): string
+    {
+        return $this->category instanceof HealthcareServiceCategory
+            ? $this->category->value
+            : (string) ($this->category ?? 'soins');
+    }
+
+    public function getServiceCategoryAttribute(): array
+    {
+        $cat = $this->category instanceof HealthcareServiceCategory
+            ? $this->category
+            : HealthcareServiceCategory::tryFrom((string) $this->category) ?? HealthcareServiceCategory::Soins;
+
+        return [
+            'id' => $cat->value,
+            'value' => $cat->value,
+            'name' => $cat->label(),
+            'description' => $cat->description(),
+        ];
+    }
+
+    public function getProfessionIdsAttribute(): array
+    {
+        if ($this->relationLoaded('professions')) {
+            return $this->professions->pluck('id')->all();
+        }
+
+        return $this->professions()->pluck('professions.id')->all();
+    }
+
+    public function getProfessionsSummaryAttribute(): array
+    {
+        $profs = $this->relationLoaded('professions')
+            ? $this->professions
+            : $this->professions()->get();
+
+        return $profs->map(fn ($p) => [
+            'id' => $p->id,
+            'name' => $p->name,
+            'slug' => $p->slug,
+        ])->all();
     }
 
     /**

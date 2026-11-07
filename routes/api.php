@@ -1,12 +1,14 @@
 <?php
 
 use App\Http\Controllers\Admin\AuthController as AdminAuthController;
+use App\Http\Controllers\Admin\CityController as AdminCityController;
 use App\Http\Controllers\Admin\PatientController as AdminPatientController;
 use App\Http\Controllers\Admin\ProfessionalController as AdminProfessionalController;
 use App\Http\Controllers\Admin\ProfessionController as AdminProfessionController;
 use App\Http\Controllers\Admin\ProfessionDocumentController as AdminProfessionDocumentController;
 use App\Http\Controllers\Admin\ServiceController as AdminServiceController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CityController;
 use App\Http\Controllers\Api\Client\AddressController;
 use App\Http\Controllers\Api\Client\BeneficiaryController;
 use App\Http\Controllers\Api\Client\CareRequestController;
@@ -45,11 +47,17 @@ Route::group([
     Route::put('password', [AdminAuthController::class, 'updatePassword'])->middleware('auth:admin');
 });
 
-// Public Professional Registration & Status
+// Public Professional Registration & Status & Uniqueness
+Route::post('public/professionals/check-unique', [ProfessionalController::class, 'checkUniqueness']);
+Route::post('professionals/check-unique', [ProfessionalController::class, 'checkUniqueness']);
 Route::post('public/professionals', [ProfessionalController::class, 'publicRegister']);
 Route::get('public/professionals/{id}', [ProfessionalController::class, 'publicShow']);
 Route::post('professionals', [ProfessionalController::class, 'publicRegister']);
 Route::get('professionals/{id}', [ProfessionalController::class, 'publicShow']);
+
+// Cities (Villes)
+Route::get('public/cities', [CityController::class, 'index']);
+Route::get('cities', [CityController::class, 'index']);
 
 // Professional Dossier & Profile Routes
 Route::group([
@@ -124,6 +132,12 @@ Route::group([
     Route::get('professions/{profession}', [AdminProfessionController::class, 'show']);
     Route::put('professions/{profession}', [AdminProfessionController::class, 'update']);
     Route::delete('professions/{profession}', [AdminProfessionController::class, 'destroy']);
+
+    // Cities (Villes)
+    Route::get('cities', [AdminCityController::class, 'index']);
+    Route::post('cities', [AdminCityController::class, 'store']);
+    Route::match(['put', 'patch'], 'cities/{city}', [AdminCityController::class, 'update']);
+    Route::delete('cities/{city}', [AdminCityController::class, 'destroy']);
 });
 
 // Public Professions & Documents Routes

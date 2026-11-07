@@ -12,9 +12,60 @@ uses(RefreshDatabase::class);
 test('unauthenticated users cannot access admin profession routes', function () {
     $response = $this->getJson('/api/admin/professions');
     $response->assertStatus(401);
+});
 
-    $response = $this->postJson('/api/admin/professions', ['name' => 'Kiné']);
-    $response->assertStatus(401);
+test('admin cannot create, update or delete a profession because professions are fixed', function () {
+    $admin = User::factory()->admin()->create();
+    $token = Auth::guard('admin')->login($admin);
+    $prof = Profession::factory()->create();
+
+    // POST /api/admin/professions
+    $response = $this->withHeader('Authorization', "Bearer {$token}")
+        ->postJson('/api/admin/professions', ['name' => 'Nouvelle Profession']);
+    expect(in_array($response->status(), [403, 405]))->toBeTrue();
+
+    // PUT /api/admin/professions/{id} without documents (trying to modify profession itself)
+    $response = $this->withHeader('Authorization', "Bearer {$token}")
+        ->putJson("/api/admin/professions/{$prof->id}", ['name' => 'Autre Nom']);
+    expect(in_array($response->status(), [403, 405]))->toBeTrue();
+
+    // DELETE /api/admin/professions/{id}
+    $response = $this->withHeader('Authorization', "Bearer {$token}")
+        ->deleteJson("/api/admin/professions/{$prof->id}");
+    expect(in_array($response->status(), [403, 405]))->toBeTrue();
+});
+
+test('admin can update profession document requirements', function () {
+    $admin = User::factory()->admin()->create();
+    $token = Auth::guard('admin')->login($admin);
+
+    $profession = Profession::factory()->create();
+    $doc1 = ProfessionDocument::factory()->create();
+    $doc2 = ProfessionDocument::factory()->create();
+
+    $payload = [
+        'documents' => [
+            ['id' => $doc1->id, 'required' => true],
+            ['id' => $doc2->id, 'required' => false],
+        ],
+    ];
+
+    $response = $this->withHeader('Authorization', "Bearer {$token}")
+        ->putJson("/api/admin/professions/{$profession->id}/documents", $payload);
+
+    $response->assertOk();
+
+    $this->assertDatabaseHas('profession_profession_document', [
+        'profession_id' => $profession->id,
+        'profession_document_id' => $doc1->id,
+        'required' => true,
+    ]);
+
+    $this->assertDatabaseHas('profession_profession_document', [
+        'profession_id' => $profession->id,
+        'profession_document_id' => $doc2->id,
+        'required' => false,
+    ]);
 });
 
 test('clients can list active professions with services and documents', function () {
@@ -161,121 +212,23 @@ test('admin can create and update profession documents', function () {
     ]);
 });
 
-test('admin can create profession with services and documents with required pivot', function () {
+test('professions cannot be created, updated, or deleted via admin CRUD because they are fixed', function () {
     $admin = User::factory()->admin()->create();
     $token = Auth::guard('admin')->login($admin);
 
-    $service1 = Service::factory()->create();
-    $service2 = Service::factory()->create();
+    $profession = Profession::factory()->create(['name' => 'Test']);
 
-    $doc1 = ProfessionDocument::factory()->create(['name' => 'Diplome']);
-    $doc2 = ProfessionDocument::factory()->create(['name' => 'Casier']);
+    $res1 = $this->withHeader('Authorization', "Bearer {$token}")
+        ->postJson('/api/admin/professions', ['name' => 'Sage-Femme']);
+    expect(in_array($res1->status(), [403, 405]))->toBeTrue();
 
-    $payload = [
-        'name' => 'Sage-Femme',
-        'description' => 'Profession médicale maïeutique',
-        'services' => [$service1->id, $service2->id],
-        'documents' => [
-            ['id' => $doc1->id, 'required' => true],
-            ['id' => $doc2->id, 'required' => false],
-        ],
-    ];
+    $res2 = $this->withHeader('Authorization', "Bearer {$token}")
+        ->putJson("/api/admin/professions/{$profession->id}", ['name' => 'Updated']);
+    expect(in_array($res2->status(), [403, 405]))->toBeTrue();
 
-    $response = $this->withHeader('Authorization', "Bearer {$token}")
-        ->postJson('/api/admin/professions', $payload);
-
-    $response->assertStatus(201)
-        ->assertJson([
-            'name' => 'Sage-Femme',
-        ]);
-
-    $professionId = $response->json('id');
-    $profession = Profession::with(['services', 'documents'])->findOrFail($professionId);
-
-    expect($profession->services->pluck('id')->all())->toEqualCanonicalizing([$service1->id, $service2->id]);
-
-    $this->assertDatabaseHas('profession_service', [
-        'profession_id' => $professionId,
-        'service_id' => $service1->id,
-    ]);
-
-    $this->assertDatabaseHas('profession_profession_document', [
-        'profession_id' => $professionId,
-        'profession_document_id' => $doc1->id,
-        'required' => true,
-    ]);
-
-    $this->assertDatabaseHas('profession_profession_document', [
-        'profession_id' => $professionId,
-        'profession_document_id' => $doc2->id,
-        'required' => false,
-    ]);
-});
-
-test('admin can update profession and sync its services and documents', function () {
-    $admin = User::factory()->admin()->create();
-    $token = Auth::guard('admin')->login($admin);
-
-    $service1 = Service::factory()->create();
-    $service2 = Service::factory()->create();
-
-    $doc1 = ProfessionDocument::factory()->create();
-    $doc2 = ProfessionDocument::factory()->create();
-
-    $profession = Profession::factory()->create(['name' => 'Kinésithérapeute']);
-    $profession->services()->attach($service1->id);
-    $profession->documents()->attach($doc1->id, ['required' => true]);
-
-    $updatePayload = [
-        'name' => 'Masseur-Kinésithérapeute D.E.',
-        'services' => [$service2->id],
-        'documents' => [
-            ['id' => $doc2->id, 'required' => true],
-        ],
-    ];
-
-    $response = $this->withHeader('Authorization', "Bearer {$token}")
-        ->putJson("/api/admin/professions/{$profession->id}", $updatePayload);
-
-    $response->assertOk()
-        ->assertJson(['name' => 'Masseur-Kinésithérapeute D.E.']);
-
-    $profession->refresh();
-    expect($profession->services->pluck('id')->all())->toBe([$service2->id]);
-
-    $this->assertDatabaseMissing('profession_service', [
-        'profession_id' => $profession->id,
-        'service_id' => $service1->id,
-    ]);
-
-    $this->assertDatabaseHas('profession_service', [
-        'profession_id' => $profession->id,
-        'service_id' => $service2->id,
-    ]);
-
-    $this->assertDatabaseMissing('profession_profession_document', [
-        'profession_id' => $profession->id,
-        'profession_document_id' => $doc1->id,
-    ]);
-
-    $this->assertDatabaseHas('profession_profession_document', [
-        'profession_id' => $profession->id,
-        'profession_document_id' => $doc2->id,
-        'required' => true,
-    ]);
-});
-
-test('admin can delete a profession', function () {
-    $admin = User::factory()->admin()->create();
-    $token = Auth::guard('admin')->login($admin);
-
-    $profession = Profession::factory()->create();
-
-    $response = $this->withHeader('Authorization', "Bearer {$token}")
+    $res3 = $this->withHeader('Authorization', "Bearer {$token}")
         ->deleteJson("/api/admin/professions/{$profession->id}");
-
-    $response->assertStatus(204);
-    $this->assertDatabaseMissing('professions', ['id' => $profession->id]);
+    expect(in_array($res3->status(), [403, 405]))->toBeTrue();
 });
 
 test('admin can delete a profession document', function () {

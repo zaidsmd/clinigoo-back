@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\DocumentVerificationStatus;
+use App\Enums\HealthcareProfession;
 use App\Enums\ProfessionalHistoryAction;
 use App\Enums\ProfessionalStatus;
 use App\Models\Profession;
@@ -68,12 +69,16 @@ class ProfessionalProfileService
             }
         }
 
+        $profEnum = HealthcareProfession::fromInput($profile->profession ?? $profile->user->profession ?? $profession?->slug);
+
         return [
             'id' => $profile->id,
             'user' => [
                 'id' => $profile->user->id,
                 'email' => $profile->user->email,
                 'name' => $profile->user->name,
+                'profession' => $profile->user->profession?->value ?? ($profile->user->profession ?? $profEnum?->value),
+                'profession_label' => $profEnum?->label(),
             ],
             'first_name' => $profile->first_name,
             'last_name' => $profile->last_name,
@@ -81,6 +86,8 @@ class ProfessionalProfileService
             'sexe' => $profile->sexe,
             'id_number' => $profile->id_number,
             'phone' => $profile->phone,
+            'city' => $profile->city,
+            'birthday' => $profile->birthday ? (is_string($profile->birthday) ? $profile->birthday : $profile->birthday->format('Y-m-d')) : null,
             'bio' => $profile->bio,
             'avatar' => $profile->avatar,
             'status' => $profile->status->value,
@@ -93,10 +100,19 @@ class ProfessionalProfileService
             'validated_at' => $profile->validated_at?->toIso8601String(),
             'profession' => $profession ? [
                 'id' => $profession->id,
+                'key' => $profession->slug,
                 'name' => $profession->name,
                 'slug' => $profession->slug,
                 'description' => $profession->description,
-            ] : null,
+                'category' => $profEnum?->category()->label(),
+            ] : ($profEnum ? [
+                'id' => $profEnum->value,
+                'key' => $profEnum->value,
+                'name' => $profEnum->label(),
+                'slug' => $profEnum->value,
+                'description' => $profEnum->category()->label(),
+                'category' => $profEnum->category()->label(),
+            ] : null),
             'services' => $profile->services->map(fn (Service $s) => [
                 'id' => $s->id,
                 'name' => $s->name,
@@ -397,9 +413,21 @@ class ProfessionalProfileService
     {
         $profile->loadMissing(['profession.documents', 'services', 'documents']);
 
+        if (! $profile->profession_id && $profile->profession) {
+            $slug = $profile->profession instanceof HealthcareProfession
+                ? $profile->profession->value
+                : (string) $profile->profession;
+            $profModel = Profession::where('slug', $slug)->first();
+            if ($profModel) {
+                $profile->profession_id = $profModel->id;
+                $profile->save();
+                $profile->load('profession.documents');
+            }
+        }
+
         $errors = [];
 
-        if (! $profile->profession_id || ! $profile->profession) {
+        if (! $profile->profession_id && ! $profile->profession) {
             $errors['profession'] = ['Veuillez choisir une profession valide avant de soumettre votre dossier.'];
         }
 

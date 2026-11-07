@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\HealthcareProfession;
 use App\Enums\UserType;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -23,6 +24,7 @@ use Tymon\JWTAuth\Contracts\JWTSubject;
  * @property string $name
  * @property string $email
  * @property UserType $type
+ * @property HealthcareProfession|string|null $profession
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
@@ -35,7 +37,7 @@ use Tymon\JWTAuth\Contracts\JWTSubject;
  * @property-read ProfessionalProfile|null $professionalProfile
  * @property-read PatientProfile|ProfessionalProfile|null $profile
  */
-#[Fillable(['name', 'email', 'password', 'type'])]
+#[Fillable(['name', 'email', 'password', 'type', 'profession'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements JWTSubject, MustVerifyEmail
 {
@@ -56,6 +58,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         return [
             'type' => UserType::class,
+            'profession' => HealthcareProfession::class,
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',

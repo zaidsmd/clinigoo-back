@@ -17,10 +17,25 @@ class CareRequestService
      */
     public function dataTable(array $filters = []): mixed
     {
-        $query = CareRequest::with(['service', 'beneficiary', 'user', 'address']);
+        $query = CareRequest::with(['service', 'beneficiary', 'user.patientProfile', 'address', 'documents'])
+            ->latest('id');
 
-        if (! empty($filters['status'])) {
-            $query->where('status', $filters['status']);
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
+            $status = $filters['status'];
+            if ($status === 'in_progress') {
+                $query->whereIn('status', ['in_progress', 'inprogress']);
+            } elseif ($status === 'matched') {
+                $query->whereIn('status', ['matched', 'confirmed']);
+            } elseif ($status === 'pending') {
+                $query->whereIn('status', ['pending', 'searching']);
+            } else {
+                $query->where('status', $status);
+            }
+        }
+
+        if (isset($filters['urgent']) && $filters['urgent'] !== '' && $filters['urgent'] !== 'all') {
+            $isUrgent = filter_var($filters['urgent'], FILTER_VALIDATE_BOOLEAN);
+            $query->where('urgent', $isUrgent);
         }
 
         if (! empty($filters['user_id'])) {
@@ -34,6 +49,10 @@ class CareRequestService
                     $query->where(function ($q) use ($search) {
                         $q->where('reference', 'like', "%{$search}%")
                             ->orWhere('status', 'like', "%{$search}%")
+                            ->orWhere('city', 'like', "%{$search}%")
+                            ->orWhere('address_line', 'like', "%{$search}%")
+                            ->orWhere('notes', 'like', "%{$search}%")
+                            ->orWhere('description', 'like', "%{$search}%")
                             ->orWhereHas('user', function ($uq) use ($search) {
                                 $uq->where('name', 'like', "%{$search}%")
                                     ->orWhere('email', 'like', "%{$search}%");
@@ -48,7 +67,76 @@ class CareRequestService
                     });
                 }
             })
+            ->with([
+                'status_counts' => $this->getStatusCounts(),
+            ])
             ->make(true);
+    }
+
+    /**
+     * Get counts of care requests grouped by status.
+     */
+    public function getStatusCounts(): array
+    {
+        $rawCounts = CareRequest::query()
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        $total = CareRequest::count();
+
+        $pending = ($rawCounts['pending'] ?? 0) + ($rawCounts['searching'] ?? 0);
+        $matched = ($rawCounts['matched'] ?? 0) + ($rawCounts['confirmed'] ?? 0);
+        $scheduled = $rawCounts['scheduled'] ?? 0;
+        $inProgress = ($rawCounts['in_progress'] ?? 0) + ($rawCounts['inprogress'] ?? 0);
+        $completed = $rawCounts['completed'] ?? 0;
+        $cancelled = $rawCounts['cancelled'] ?? 0;
+
+        return [
+            'all' => $total,
+            'pending' => $pending,
+            'matched' => $matched,
+            'scheduled' => $scheduled,
+            'in_progress' => $inProgress,
+            'completed' => $completed,
+            'cancelled' => $cancelled,
+        ];
+    }
+
+    /**
+     * Find a care request by id.
+     */
+    public function find(int|string $id): CareRequest
+    {
+        return CareRequest::with(['service', 'beneficiary', 'user.patientProfile', 'address', 'documents'])
+            ->findOrFail($id);
+    }
+
+    /**
+     * Update the status of a care request.
+     */
+    public function updateStatus(CareRequest $careRequest, string $status, ?string $notes = null): CareRequest
+    {
+        $updates = ['status' => $status];
+        if ($notes !== null) {
+            $updates['notes'] = $notes;
+        }
+        if ($status === 'cancelled') {
+            $updates['cancelled_at'] = now();
+        }
+
+        $careRequest->update($updates);
+
+        return $careRequest->fresh(['service', 'beneficiary', 'user.patientProfile', 'address', 'documents']);
+    }
+
+    /**
+     * Delete a care request.
+     */
+    public function delete(CareRequest $careRequest): void
+    {
+        $careRequest->delete();
     }
 
     /**

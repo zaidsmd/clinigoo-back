@@ -17,10 +17,16 @@ class ServiceService
      */
     public function dataTable(array $filters = []): mixed
     {
-        $query = Service::query();
+        $query = Service::with('professions');
 
         if (isset($filters['is_active'])) {
             $query->where('is_active', (bool) $filters['is_active']);
+        }
+
+        if (! empty($filters['category']) && $filters['category'] !== 'all') {
+            $query->where('category', $filters['category']);
+        } elseif (! empty($filters['service_category_id']) && $filters['service_category_id'] !== 'all') {
+            $query->where('category', $filters['service_category_id']);
         }
 
         return DataTables::of($query)
@@ -81,7 +87,10 @@ class ServiceService
             $data['icon'] = $request->file('icon')->store('service_icons', 'public');
         }
 
-        return Service::create($data);
+        $service = Service::create($data);
+        $this->syncProfessionsFromRequest($service, $request);
+
+        return $service->load('professions');
     }
 
     public function updateService(Service $service, UpdateServiceRequest|Request|array $request): Service
@@ -102,8 +111,43 @@ class ServiceService
         }
 
         $service->update($data);
+        $this->syncProfessionsFromRequest($service, $request);
 
-        return $service->fresh();
+        return $service->fresh(['professions']);
+    }
+
+    /**
+     * Synchronize associated healthcare professions from request input.
+     */
+    protected function syncProfessionsFromRequest(Service $service, mixed $request): void
+    {
+        $raw = null;
+        if ($request instanceof Request) {
+            $raw = $request->input('profession_ids')
+                ?? $request->input('profession_id')
+                ?? $request->input('professions');
+        } elseif (is_array($request)) {
+            $raw = $request['profession_ids']
+                ?? $request['profession_id']
+                ?? $request['professions']
+                ?? null;
+        }
+
+        if ($raw !== null) {
+            $rawArray = is_array($raw) ? $raw : [$raw];
+            $resolvedIds = [];
+            foreach ($rawArray as $item) {
+                if (is_numeric($item)) {
+                    $resolvedIds[] = (int) $item;
+                } elseif (is_string($item) && ! empty($item)) {
+                    $prof = \App\Models\Profession::where('slug', $item)->first();
+                    if ($prof) {
+                        $resolvedIds[] = $prof->id;
+                    }
+                }
+            }
+            $service->professions()->sync(array_unique($resolvedIds));
+        }
     }
 
     public function deleteService(Service $service): bool

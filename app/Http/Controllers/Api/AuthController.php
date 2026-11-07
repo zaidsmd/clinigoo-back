@@ -24,12 +24,17 @@ class AuthController extends Controller
             'email' => ['required', 'email', 'unique:users,email'],
             'password' => ['required', 'min:8'],
             'role' => ['nullable', 'string', Rule::in(UserType::values())],
+            'type' => ['nullable', 'string', Rule::in(UserType::values())],
+            'profession' => ['nullable', 'string'],
 
+            'first_name' => ['nullable', 'string'],
+            'last_name' => ['nullable', 'string'],
             'firstName' => ['nullable', 'string'],
             'lastName' => ['nullable', 'string'],
             'sexe' => ['nullable', 'string'],
 
             'birthDay' => ['nullable', 'date'],
+            'birthday' => ['nullable', 'date'],
             'phone' => ['nullable', 'string'],
             'profile_email' => ['nullable', 'email'],
 
@@ -42,16 +47,19 @@ class AuthController extends Controller
             'services.*' => ['integer', 'exists:services,id'],
         ]);
 
-        $firstName = $validated['firstName'] ?? null;
-        $lastName =  $validated['lastName'] ?? null;
+        $firstName = $validated['firstName'] ?? $validated['first_name'] ?? '';
+        $lastName =  $validated['lastName'] ?? $validated['last_name'] ?? '';
+        $fullName = trim("{$firstName} {$lastName}") ?: $validated['email'];
 
-
-        $type = isset($validated['type']) ? UserType::from($validated['type']) : UserType::Patient;
+        $rawType = $validated['type'] ?? $validated['role'] ?? null;
+        $type = $rawType ? UserType::from($rawType) : UserType::Patient;
+        $profession = $validated['profession'] ?? null;
 
         $user = User::create([
-            'name' => $validated['firstName'] . ' ' . $validated['lastName'],
+            'name' => $fullName,
             'email' => $validated['email'],
             'type' => $type,
+            'profession' => $profession,
             'password' => Hash::make($validated['password']),
         ]);
 
@@ -60,7 +68,7 @@ class AuthController extends Controller
             $user->patientProfile()->create([
                 'first_name' => $firstName ?? '',
                 'last_name' => $lastName ?? '',
-                'birthday' => $validated['birthDay'] ?? null,
+                'birthday' => $validated['birthday'] ?? $validated['birthDay'] ?? null,
                 'sexe' => $validated['sexe'] ?? null,
                 'phone' => $validated['phone'] ?? null,
                 'email' => $validated['profile_email'] ?? $validated['email'],
